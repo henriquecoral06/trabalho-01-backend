@@ -1,4 +1,4 @@
-# {{Nome do Projeto}}
+# Agenda de Docas
 
 > **Este é o ponto de partida do projeto do grupo.** Apague este bloco antes de entregar.
 >
@@ -19,7 +19,7 @@
 >
 > Os exemplos marcados com *(exemplo)* são de uma biblioteca. O projeto completo dela está em `Aula 10-11/exemplo-biblioteca`.
 
-{{Uma ou duas frases: o que o sistema faz e para quem. Quem nunca viu o projeto tem que entender o que ele é lendo só este parágrafo.}}
+Sistema para o centro de distribuição agendar a descarga dos caminhões dos fornecedores: em qual doca, em qual dia e em qual horário cada carga vai chegar.
 
 Projeto Final da disciplina de Backend (Engenharia de Software, SATC). **Etapa 1: arquitetura do backend.**
 
@@ -45,26 +45,28 @@ Projeto Final da disciplina de Backend (Engenharia de Software, SATC). **Etapa 1
 
 ## O problema
 
-**Tema sorteado:** {{tema}}
+**Tema sorteado:** Logística e Cadeia de Suprimentos
 
-{{Em 3 a 5 linhas: o problema que o grupo criou dentro do tema, quem sofre com ele hoje e o que o sistema muda.}}
+Num centro de distribuição, os caminhões dos fornecedores chegam sem hora marcada e o agendamento é feito por WhatsApp e numa planilha. Dois caminhões acabam marcados para a mesma doca no mesmo horário e ficam na fila do pátio; carga refrigerada é mandada para uma doca sem câmara fria e espera no sol; e fornecedor que avisa em cima da hora desorganiza a equipe de descarga do dia. O sistema guarda as docas, os fornecedores e cada agendamento, e só aceita um agendamento que a doca consegue receber.
 
 **Quem usa o sistema:**
 
 | Quem | O que faz no sistema |
 |---|---|
-| Bibliotecário *(exemplo)* | Cadastra livros e leitores, registra empréstimos e devoluções |
-| ... | ... |
+| Coordenador do centro de distribuição | Cadastra as docas e os fornecedores |
+| Fornecedor | Agenda a descarga da sua carga numa doca |
 
-**Regras de negócio.** No mínimo 3, criadas pelo grupo a partir do problema: o que o sistema precisa garantir ou impedir. Precisam atender à necessidade do tema e estar implementadas no código. O que só confere formato (campo obrigatório, número positivo) é validação do DTO, não regra de negócio.
+**Regras de negócio.** O grupo criou estas três regras olhando para o problema da planilha: hoje nada impede dois caminhões na mesma doca, carga refrigerada em doca comum, nem agendamento em cima da hora. As regras ficam todas no Service, nenhuma no banco.
 
 | # | Regra | Onde está no código | Rota que usa |
 |---|---|---|---|
-| R1 *(exemplo)* | Um leitor não pode ter mais de 3 empréstimos em aberto | `EmprestimoService` | `POST /emprestimos` |
-| R2 | ... | ... | ... |
-| R3 | ... | ... | ... |
+| R1 | Uma doca não pode ter dois agendamentos com horários que se sobrepõem | `AgendamentoService.criar` | `POST /agendamentos` |
+| R2 | Carga refrigerada só pode ser agendada em doca refrigerada | `AgendamentoService.criar` | `POST /agendamentos` |
+| R3 | O agendamento precisa ser feito com no mínimo 24 horas de antecedência | `AgendamentoService.criar` | `POST /agendamentos` |
 
-**Fora do escopo:** {{o que o grupo decidiu não fazer, para o projeto caber no semestre}}
+Quando uma regra barra o pedido, a API devolve `400` com a regra explicada na mensagem.
+
+**Fora do escopo:** cancelamento e remarcação de agendamentos, registro de chegada e saída do caminhão no pátio, login de usuários e tela de frontend.
 
 ## Tecnologias
 
