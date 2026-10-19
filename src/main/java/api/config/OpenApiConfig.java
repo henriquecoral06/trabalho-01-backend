@@ -32,6 +32,7 @@ public class OpenApiConfig {
                         // O que a API faz e em que pé ela está (aceita Markdown).
                         .description("API para o centro de distribuição agendar a descarga dos caminhões "
                                 + "dos fornecedores nas docas. Tema: Logística e Cadeia de Suprimentos. "
+                                + "Integrantes: Henrique Lucio Coral, Gabriel Dalmolin e Jhonatan Inácio. "
                                 + "Nesta etapa respondem o cadastro de docas, o cadastro de fornecedores e o "
                                 + "agendamento, com as regras R1, R2 e R3. Todo corpo de requisição e de "
                                 + "resposta é um **DTO** e todo erro 400/404 sai no formato `ErroDTO`."));
