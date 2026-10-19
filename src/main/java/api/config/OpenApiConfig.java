@@ -21,17 +21,19 @@ public class OpenApiConfig {
 
     // O objeto devolvido aqui vira a raiz do JSON em /v3/api-docs.
     @Bean
-    public OpenAPI apiDoProjeto() {
+    public OpenAPI apiDaAgendaDeDocas() {
         // Monta o documento com o bloco "info" preenchido.
         return new OpenAPI()
                 .info(new Info()
-                        // TROQUE: nome da API do grupo, em destaque no Swagger UI.
-                        .title("Projeto Final - NOME DO PROJETO")
+                        // Nome da API, em destaque no Swagger UI.
+                        .title("Agenda de Docas")
                         // Versão do contrato -- aqui, a etapa em que ele foi publicado.
                         .version("Etapa 1")
-                        // TROQUE: tema, integrantes e o que a API faz (aceita Markdown).
-                        .description("API REST do Projeto Final da disciplina de Backend (SATC). "
-                                + "Todo corpo de requisição e de resposta é um **DTO** "
-                                + "e todo erro 400/404 sai no formato `ErroDTO`."));
+                        // O que a API faz e em que pé ela está (aceita Markdown).
+                        .description("API para o centro de distribuição agendar a descarga dos caminhões "
+                                + "dos fornecedores nas docas. Tema: Logística e Cadeia de Suprimentos. "
+                                + "Nesta etapa respondem o cadastro de docas, o cadastro de fornecedores e o "
+                                + "agendamento, com as regras R1, R2 e R3. Todo corpo de requisição e de "
+                                + "resposta é um **DTO** e todo erro 400/404 sai no formato `ErroDTO`."));
     }
 }
