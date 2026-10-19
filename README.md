@@ -22,6 +22,7 @@ Projeto Final da disciplina de Backend (Engenharia de Software, SATC). **Etapa 1
 |---|---|
 | Henrique Lucio Coral | [@henriquecoral06](https://github.com/henriquecoral06) |
 | Gabriel Dalmolin | [@dalmolin-gabriel](https://github.com/dalmolin-gabriel) |
+| Jhonatan Inácio | [@jhonataninacio6](https://github.com/jhonataninacio6) |
 
 ## O problema
 
