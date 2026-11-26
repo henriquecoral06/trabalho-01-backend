@@ -34,6 +34,12 @@ public class DocaMapper {
         return new DocaResponseDTO(doca.getId(), doca.getIdentificacao(), doca.isRefrigerada());
     }
 
+    // PUT: copia o DTO para a doca que já existe (o id não muda).
+    public void updateEntity(Doca doca, DocaRequestDTO dto) {
+        // Usa o método de alteração da entidade.
+        doca.atualizar(dto.identificacao(), dto.refrigerada());
+    }
+
     // GET de listagem: converte cada doca da lista.
     public List<DocaResponseDTO> toResponseList(List<Doca> docas) {
         // Reaproveita o toResponse para cada item.

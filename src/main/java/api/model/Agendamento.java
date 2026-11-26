@@ -123,4 +123,16 @@ public class Agendamento {
         // Retorna o valor guardado no atributo cargaRefrigerada.
         return cargaRefrigerada;
     }
+
+    // PUT /agendamentos/{id}: remarca o agendamento. Quem confere as regras
+    // R1, R2 e R3 antes de chamar este método é o AgendamentoService.
+    public void atualizar(Fornecedor fornecedor, Doca doca, LocalDateTime inicio, LocalDateTime fim,
+                          boolean cargaRefrigerada) {
+        // Copia os dados novos, mantendo o id.
+        this.fornecedor = fornecedor;
+        this.doca = doca;
+        this.inicio = inicio;
+        this.fim = fim;
+        this.cargaRefrigerada = cargaRefrigerada;
+    }
 }

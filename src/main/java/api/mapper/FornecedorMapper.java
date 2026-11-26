@@ -14,7 +14,7 @@ import api.model.Fornecedor;
 // RESPONSABILIDADE: converter FornecedorRequestDTO em Fornecedor, e Fornecedor em
 //                   FornecedorResponseDTO. Também é usado pelo AgendamentoMapper,
 //                   para montar o fornecedor que aparece dentro de cada agendamento.
-// SITUAÇÃO: implementada. Tem os métodos que POST /fornecedores e os agendamentos usam.
+// SITUAÇÃO: implementada.
 @Component
 public class FornecedorMapper {
 
@@ -22,6 +22,12 @@ public class FornecedorMapper {
     public Fornecedor toEntity(FornecedorRequestDTO dto) {
         // Usa o construtor de cadastro da entidade.
         return new Fornecedor(dto.nome(), dto.cnpj());
+    }
+
+    // PUT /fornecedores/{id}: copia o DTO para o fornecedor que já existe (o id não muda).
+    public void updateEntity(Fornecedor fornecedor, FornecedorRequestDTO dto) {
+        // Usa o método de alteração da entidade.
+        fornecedor.atualizar(dto.nome(), dto.cnpj());
     }
 
     // Toda resposta: copia da entidade só o que o contrato da API mostra.

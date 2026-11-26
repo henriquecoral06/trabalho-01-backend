@@ -1,6 +1,10 @@
 // Define o pacote onde as entidades ficam organizadas.
 package api.model;
 
+// Importa a lista que guarda os agendamentos da doca.
+import java.util.ArrayList;
+import java.util.List;
+
 // Importa a anotação que configura colunas da tabela.
 import jakarta.persistence.Column;
 // Importa a anotação que transforma a classe em entidade JPA.
@@ -11,6 +15,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 // Importa a anotação que marca a chave primária.
 import jakarta.persistence.Id;
+// Importa a anotação do relacionamento "um para muitos".
+import jakarta.persistence.OneToMany;
 // Importa a anotação que define o nome da tabela.
 import jakarta.persistence.Table;
 
@@ -41,6 +47,13 @@ public class Doca {
     // Diz se a doca recebe carga refrigerada. Usado pela regra R2.
     private boolean refrigerada;
 
+    // Lado "um" do relacionamento: uma doca recebe vários agendamentos.
+    // mappedBy = "doca": quem guarda a chave estrangeira é o Agendamento
+    // (coluna doca_id); esta lista só lê. LAZY é o padrão do @OneToMany.
+    @OneToMany(mappedBy = "doca")
+    // Os agendamentos desta doca, em horários diferentes.
+    private List<Agendamento> agendamentos = new ArrayList<>();
+
     // Construtor sem argumentos exigido pelo Hibernate para reconstruir entidades.
     protected Doca() {
     }
@@ -69,5 +82,19 @@ public class Doca {
     public boolean isRefrigerada() {
         // Retorna o valor guardado no atributo refrigerada.
         return refrigerada;
+    }
+
+    // Devolve os agendamentos da doca (só dentro de uma transação: a lista é LAZY).
+    public List<Agendamento> getAgendamentos() {
+        // Retorna a lista do relacionamento.
+        return agendamentos;
+    }
+
+    // PUT /docas/{id}: troca os dados da doca, mantendo o id.
+    public void atualizar(String identificacao, boolean refrigerada) {
+        // Copia a identificação nova.
+        this.identificacao = identificacao;
+        // Copia a informação de câmara fria nova.
+        this.refrigerada = refrigerada;
     }
 }

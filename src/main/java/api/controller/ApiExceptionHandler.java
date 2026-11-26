@@ -18,6 +18,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 // Importa a exceção lançada quando o @Valid reprova o DTO.
 import org.springframework.web.bind.MethodArgumentNotValidException;
+// Importa a exceção lançada quando falta um parâmetro obrigatório na URL.
+import org.springframework.web.bind.MissingServletRequestParameterException;
+// Importa a exceção lançada quando um parâmetro da URL não converte (texto onde era número).
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+// Importa a exceção lançada quando o sort pede um campo que a entidade não tem.
+import org.springframework.data.mapping.PropertyReferenceException;
 // Importa a anotação que marca um método como tratador de exceção.
 import org.springframework.web.bind.annotation.ExceptionHandler;
 // Importa a anotação que aplica o tratador a todos os controllers.
@@ -88,6 +94,32 @@ public class ApiExceptionHandler {
         // e.getMessage() traria detalhes internos do Jackson -- não vai para o cliente.
         return responder(HttpStatus.BAD_REQUEST,
                 "Corpo da requisição inválido: confira o JSON e o formato das datas (yyyy-MM-ddTHH:mm:ss)", request, List.of());
+    }
+
+    // 400 de ordenação: ?sort=campoQueNaoExiste. Sem este tratador, viraria 500.
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ErroDTO> tratarOrdenacaoInvalida(PropertyReferenceException e, HttpServletRequest request) {
+        // getPropertyName(): o nome que veio no sort e não existe.
+        return responder(HttpStatus.BAD_REQUEST, "Campo de ordenação inválido: " + e.getPropertyName(),
+                request, List.of());
+    }
+
+    // 400 de parâmetro na URL que não converte: /docas/abc, ?de=31-12-2026...
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErroDTO> tratarParametroInvalido(MethodArgumentTypeMismatchException e,
+                                                           HttpServletRequest request) {
+        // Diz qual parâmetro está errado, sem detalhe interno do Java.
+        return responder(HttpStatus.BAD_REQUEST, "Parâmetro inválido: " + e.getName()
+                + " (datas no formato yyyy-MM-dd, ids numéricos)", request, List.of());
+    }
+
+    // 400 de parâmetro obrigatório ausente: GET /docas/ocupacao sem ?de=.
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErroDTO> tratarParametroAusente(MissingServletRequestParameterException e,
+                                                          HttpServletRequest request) {
+        // getParameterName(): o parâmetro que faltou.
+        return responder(HttpStatus.BAD_REQUEST, "Parâmetro obrigatório ausente: " + e.getParameterName(),
+                request, List.of());
     }
 
     // Monta o ErroDTO e a resposta HTTP -- um lugar só, igual a um mapper.

@@ -1,6 +1,10 @@
 // Define o pacote onde as entidades ficam organizadas.
 package api.model;
 
+// Importa a lista que guarda os agendamentos do fornecedor.
+import java.util.ArrayList;
+import java.util.List;
+
 // Importa a anotação que configura colunas da tabela.
 import jakarta.persistence.Column;
 // Importa a anotação que transforma a classe em entidade JPA.
@@ -11,6 +15,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 // Importa a anotação que marca a chave primária.
 import jakarta.persistence.Id;
+// Importa a anotação do relacionamento "um para muitos".
+import jakarta.persistence.OneToMany;
 // Importa a anotação que define o nome da tabela.
 import jakarta.persistence.Table;
 
@@ -41,6 +47,12 @@ public class Fornecedor {
     // Guarda o CNPJ do fornecedor.
     private String cnpj;
 
+    // Lado "um" do relacionamento: um fornecedor faz vários agendamentos.
+    // mappedBy = "fornecedor": a chave estrangeira fica no Agendamento (fornecedor_id).
+    @OneToMany(mappedBy = "fornecedor")
+    // Os agendamentos deste fornecedor.
+    private List<Agendamento> agendamentos = new ArrayList<>();
+
     // Construtor sem argumentos exigido pelo Hibernate para reconstruir entidades.
     protected Fornecedor() {
     }
@@ -69,5 +81,19 @@ public class Fornecedor {
     public String getCnpj() {
         // Retorna o valor guardado no atributo cnpj.
         return cnpj;
+    }
+
+    // Devolve os agendamentos do fornecedor (só dentro de uma transação: a lista é LAZY).
+    public List<Agendamento> getAgendamentos() {
+        // Retorna a lista do relacionamento.
+        return agendamentos;
+    }
+
+    // PUT /fornecedores/{id}: troca os dados do fornecedor, mantendo o id.
+    public void atualizar(String nome, String cnpj) {
+        // Copia o nome novo.
+        this.nome = nome;
+        // Copia o CNPJ novo.
+        this.cnpj = cnpj;
     }
 }

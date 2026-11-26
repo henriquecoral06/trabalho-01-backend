@@ -28,13 +28,13 @@ public class OpenApiConfig {
                         // Nome da API, em destaque no Swagger UI.
                         .title("Agenda de Docas")
                         // Versão do contrato -- aqui, a etapa em que ele foi publicado.
-                        .version("Etapa 1")
+                        .version("Projeto Final (N3)")
                         // O que a API faz e em que pé ela está (aceita Markdown).
                         .description("API para o centro de distribuição agendar a descarga dos caminhões "
                                 + "dos fornecedores nas docas. Tema: Logística e Cadeia de Suprimentos. "
                                 + "Integrantes: Henrique Lucio Coral, Gabriel Dalmolin e Jhonatan Inácio. "
-                                + "Nesta etapa respondem o cadastro de docas, o cadastro de fornecedores e o "
-                                + "agendamento, com as regras R1, R2 e R3. Todo corpo de requisição e de "
-                                + "resposta é um **DTO** e todo erro 400/404 sai no formato `ErroDTO`."));
+                                + "CRUD de docas, fornecedores e agendamentos (regras R1 a R4), listagens "
+                                + "paginadas com filtros e a ocupação das docas por período. Todo corpo de "
+                                + "requisição e de resposta é um **DTO** e todo erro sai no formato `ErroDTO`."));
     }
 }
