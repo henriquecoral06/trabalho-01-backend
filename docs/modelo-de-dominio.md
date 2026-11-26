@@ -35,7 +35,7 @@ A reserva de uma doca, num horário, para a descarga de um fornecedor.
 | `fim` | `LocalDateTime` | `fim` | sim | Depois do `inicio` |
 | `cargaRefrigerada` | `boolean` | `carga_refrigerada` | sim | Diz se a carga precisa de câmara fria (R2) |
 
-As regras R1, R2 e R3 ficam no `AgendamentoService`. O banco só guarda os dados: não tem `CHECK`, `UNIQUE` nem trigger com regra de negócio.
+As regras R1, R2 e R3 ficam no `AgendamentoService`, e a R4 (doca ou fornecedor com agendamentos não pode ser excluído) no `DocaService` e no `FornecedorService`. O banco só guarda os dados: não tem `CHECK`, `UNIQUE` nem trigger com regra de negócio.
 
 ## Relacionamentos
 
@@ -43,6 +43,10 @@ As regras R1, R2 e R3 ficam no `AgendamentoService`. O banco só guarda os dados
 |---|---|---|---|---|
 | Agendamento | Fornecedor | muitos para um | `agendamentos.fornecedor_id` referencia `fornecedores(id)` | `@ManyToOne` em `Agendamento` |
 | Agendamento | Doca | muitos para um | `agendamentos.doca_id` referencia `docas(id)` | `@ManyToOne` em `Agendamento` |
+| Doca | Agendamento | um para muitos | o mesmo `agendamentos.doca_id` | `@OneToMany(mappedBy = "doca")` em `Doca` |
+| Fornecedor | Agendamento | um para muitos | o mesmo `agendamentos.fornecedor_id` | `@OneToMany(mappedBy = "fornecedor")` em `Fornecedor` |
+
+O relacionamento é bidirecional: o `@ManyToOne` no `Agendamento` é o dono da chave estrangeira, e o `@OneToMany` na `Doca` e no `Fornecedor` é o lado inverso (`mappedBy`), só de leitura e `LAZY`. As regras não percorrem essas listas: a R1 e a R4 usam consultas do `AgendamentoRepository`, que buscam só o necessário no banco.
 
 ## Diagrama ER
 
