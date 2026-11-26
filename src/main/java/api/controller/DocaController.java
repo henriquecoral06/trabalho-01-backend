@@ -1,6 +1,9 @@
 // Define o pacote responsável pelas rotas HTTP da aplicação.
 package api.controller;
 
+// Importa o tipo de data usado no período da ocupação.
+import java.time.LocalDate;
+
 // Importa as anotações de documentação do Swagger/OpenAPI.
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,6 +20,8 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+// Importa a anotação que lê datas no formato yyyy-MM-dd.
+import org.springframework.format.annotation.DateTimeFormat;
 // Importa o status HTTP usado na criação.
 import org.springframework.http.HttpStatus;
 // Importa o tipo usado para responder com status e corpo.
@@ -36,13 +41,16 @@ import org.springframework.web.bind.annotation.RestController;
 import api.dto.DocaRequestDTO;
 import api.dto.DocaResponseDTO;
 import api.dto.ErroDTO;
-// Importa a camada que contém as operações da doca.
+import api.dto.OcupacaoDTO;
+// Importa as camadas que contêm as operações da doca e o cálculo da ocupação.
 import api.service.DocaService;
+import api.service.OcupacaoService;
 
 // CAMADA: Controller
 // RESPONSABILIDADE: receber as requisições de /docas, validar o DTO de
 //                   entrada e devolver o status certo. Não tem regra de negócio.
-// ROTAS ATENDIDAS: POST /docas, GET /docas, GET /docas/{id}, PUT /docas/{id} e DELETE /docas/{id}.
+// ROTAS ATENDIDAS: POST /docas, GET /docas, GET /docas/{id}, PUT /docas/{id}, DELETE /docas/{id}
+//                  e GET /docas/ocupacao (aplicação prática: Visualização de Dados).
 // SITUAÇÃO: implementada.
 // Agrupa todos os endpoints desta classe sob "Docas" no Swagger UI.
 @Tag(name = "Docas", description = "Cadastro e consulta das docas do centro de distribuição")
@@ -55,10 +63,14 @@ public class DocaController {
     // Guarda a camada de serviço usada pelas rotas.
     private final DocaService service;
 
-    // Recebe o service injetado pelo Spring.
-    public DocaController(DocaService service) {
-        // Guarda o service para uso nos métodos HTTP.
+    // Calcula a ocupação das docas (Visualização de Dados).
+    private final OcupacaoService ocupacaoService;
+
+    // Recebe os services injetados pelo Spring.
+    public DocaController(DocaService service, OcupacaoService ocupacaoService) {
+        // Guarda os services para uso nos métodos HTTP.
         this.service = service;
+        this.ocupacaoService = ocupacaoService;
     }
 
     // @Valid dispara a validação do DocaRequestDTO antes deste método rodar.
@@ -87,6 +99,24 @@ public class DocaController {
             @ParameterObject @PageableDefault(size = 10, sort = "identificacao") Pageable pageable) {
         // Delega a listagem para o service.
         return service.listar(identificacao, refrigerada, pageable);
+    }
+
+    // Mapeia GET /docas/ocupacao?de=&ate=. O caminho fixo "ocupacao" tem prioridade
+    // sobre /docas/{id}, então não há conflito entre as duas rotas.
+    @Operation(summary = "Ocupação das docas num período (dados para dashboard)",
+            description = "Para cada doca: agendamentos, horas reservadas, taxa de ocupação e horas de câmara "
+                    + "fria gastas com carga seca. Traz também a taxa geral e alertas. Período de até 31 dias.")
+    @ApiResponse(responseCode = "200", description = "Ocupação calculada")
+    @ApiResponse(responseCode = "400", description = "Período inválido, maior que 31 dias ou parâmetro ausente",
+            content = @Content(schema = @Schema(implementation = ErroDTO.class)))
+    @GetMapping("/ocupacao")
+    public OcupacaoDTO ocupacao(
+            @Parameter(description = "Primeiro dia do período", example = "2026-12-01")
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate de,
+            @Parameter(description = "Último dia do período (inclusive)", example = "2026-12-02")
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate ate) {
+        // Delega o cálculo para o service.
+        return ocupacaoService.calcular(de, ate);
     }
 
     // Mapeia GET /docas/{id}.
