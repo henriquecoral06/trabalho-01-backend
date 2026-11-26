@@ -7,6 +7,9 @@ import java.time.LocalDateTime;
 // Importa o Optional devolvido pela consulta da R1.
 import java.util.Optional;
 
+// Importa a API de log (SLF4J): carta C2.
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 // Importa os tipos de paginação do Spring Data.
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +35,8 @@ import api.repository.DocaRepository;
 import api.repository.FornecedorRepository;
 // Importa os filtros opcionais da listagem.
 import api.repository.Filtros;
+// Importa o registro das operações e das regras violadas (métricas).
+import api.observability.Operacoes;
 
 // CAMADA: Service
 // RESPONSABILIDADE: CRUD dos agendamentos e as regras de negócio deles.
@@ -39,9 +44,14 @@ import api.repository.Filtros;
 //         R2 (carga refrigerada só em doca refrigerada) e
 //         R3 (no mínimo 24 horas de antecedência). Valem no POST e no PUT.
 // ROTAS ATENDIDAS: POST, GET (paginado, com filtros), GET /{id}, PUT /{id} e DELETE /{id} de /agendamentos.
+// LOGS (carta C2): INFO ao criar, remarcar e cancelar; WARN, com o código da
+//                  regra, cada vez que R1, R2 ou R3 recusa um pedido.
 // SITUAÇÃO: implementada.
 @Service
 public class AgendamentoService {
+
+    // Logger desta classe.
+    private static final Logger log = LoggerFactory.getLogger(AgendamentoService.class);
 
     // R3: com quantas horas de antecedência, no mínimo, a descarga precisa ser agendada.
     public static final int ANTECEDENCIA_MINIMA_HORAS = 24;
@@ -58,14 +68,18 @@ public class AgendamentoService {
     // Monta a resposta, com fornecedor e doca completos.
     private final AgendamentoMapper mapper;
 
+    // Conta as operações e as regras violadas nas métricas.
+    private final Operacoes operacoes;
+
     // Recebe as dependências que o Spring injeta automaticamente.
     public AgendamentoService(AgendamentoRepository repository, FornecedorRepository fornecedorRepository,
-                              DocaRepository docaRepository, AgendamentoMapper mapper) {
+                              DocaRepository docaRepository, AgendamentoMapper mapper, Operacoes operacoes) {
         // Guarda as dependências recebidas nos atributos da classe.
         this.repository = repository;
         this.fornecedorRepository = fornecedorRepository;
         this.docaRepository = docaRepository;
         this.mapper = mapper;
+        this.operacoes = operacoes;
     }
 
     // POST /agendamentos. @Transactional: a consulta da R1 e a gravação acontecem
@@ -80,6 +94,7 @@ public class AgendamentoService {
         // Passou pelas três regras: grava o agendamento novo; o banco gera o id.
         Agendamento salvo = repository.save(new Agendamento(fornecedor, doca, dto.inicio(), dto.fim(),
                 dto.cargaRefrigerada()));
+        registrar("criar", "criado", salvo);
         // A entidade para aqui: para cima vai só o DTO.
         return mapper.toResponse(salvo);
     }
@@ -117,7 +132,9 @@ public class AgendamentoService {
         validarRegras(dto, doca, id);
         // Copia os dados novos para a entidade e grava.
         agendamento.atualizar(fornecedor, doca, dto.inicio(), dto.fim(), dto.cargaRefrigerada());
-        return mapper.toResponse(repository.save(agendamento));
+        Agendamento salvo = repository.save(agendamento);
+        registrar("atualizar", "remarcado", salvo);
+        return mapper.toResponse(salvo);
     }
 
     // DELETE /agendamentos/{id}: cancela o agendamento e libera a doca.
@@ -127,6 +144,7 @@ public class AgendamentoService {
         Agendamento agendamento = buscarEntidade(id);
         // Apaga: o horário volta a ficar livre para outro fornecedor.
         repository.delete(agendamento);
+        registrar("excluir", "cancelado", agendamento);
     }
 
     // As regras do agendamento, num lugar só: POST e PUT usam as mesmas.
@@ -135,19 +153,21 @@ public class AgendamentoService {
         // Sem um horário válido, nenhuma regra faz sentido: o fim vem depois do início.
         if (!dto.fim().isAfter(dto.inicio())) {
             // 400: o pedido é válido no formato, mas não faz sentido para o sistema.
-            throw new RegraDeNegocioException("O fim do agendamento precisa ser depois do início");
+            throw new RegraDeNegocioException(operacoes.regraViolada("HORARIO", "agendamento",
+                    "O fim do agendamento precisa ser depois do início"));
         }
         // R3: a descarga precisa ser agendada com no mínimo 24 horas de antecedência.
         if (dto.inicio().isBefore(LocalDateTime.now().plusHours(ANTECEDENCIA_MINIMA_HORAS))) {
             // A mensagem vai para o cliente, dentro do ErroDTO, com status 400.
-            throw new RegraDeNegocioException("R3: o agendamento precisa ser feito com no mínimo "
-                    + ANTECEDENCIA_MINIMA_HORAS + " horas de antecedência");
+            throw new RegraDeNegocioException(operacoes.regraViolada("R3", "agendamento",
+                    "R3: o agendamento precisa ser feito com no mínimo " + ANTECEDENCIA_MINIMA_HORAS
+                            + " horas de antecedência"));
         }
         // R2: carga refrigerada só pode ir para doca com câmara fria.
         if (dto.cargaRefrigerada() && !doca.isRefrigerada()) {
             // Mesma coisa: 400 com a regra explicada.
-            throw new RegraDeNegocioException("R2: a carga é refrigerada e a doca " + doca.getIdentificacao()
-                    + " não é refrigerada");
+            throw new RegraDeNegocioException(operacoes.regraViolada("R2", "agendamento",
+                    "R2: a carga é refrigerada e a doca " + doca.getIdentificacao() + " não é refrigerada"));
         }
         // R1: a doca não pode ter outro agendamento que se sobreponha a este horário.
         Optional<Agendamento> conflito = idIgnorado == null
@@ -156,9 +176,23 @@ public class AgendamentoService {
                         dto.fim(), dto.inicio());
         // Mostra o horário que já ocupa a doca, para o fornecedor escolher outro.
         conflito.ifPresent(existente -> {
-            throw new RegraDeNegocioException("R1: a doca " + doca.getIdentificacao()
-                    + " já tem um agendamento entre " + existente.getInicio() + " e " + existente.getFim());
+            throw new RegraDeNegocioException(operacoes.regraViolada("R1", "agendamento",
+                    "R1: a doca " + doca.getIdentificacao() + " já tem um agendamento entre "
+                            + existente.getInicio() + " e " + existente.getFim()));
         });
+    }
+
+    // Log INFO e métrica de uma operação que deu certo: criar, atualizar ou excluir.
+    private void registrar(String operacao, String verbo, Agendamento a) {
+        log.atInfo()
+                .addKeyValue("operacao", operacao)
+                .addKeyValue("agendamentoId", a.getId())
+                .addKeyValue("docaId", a.getDoca().getId())
+                .addKeyValue("fornecedorId", a.getFornecedor().getId())
+                .log("Agendamento {} {}: fornecedor {}, doca {}, de {} a {} (carga refrigerada: {})",
+                        a.getId(), verbo, a.getFornecedor().getNome(), a.getDoca().getIdentificacao(),
+                        a.getInicio(), a.getFim(), a.isCargaRefrigerada());
+        operacoes.contar("agendamento", operacao);
     }
 
     // Busca o agendamento ou lança a exceção que vira 404.

@@ -96,6 +96,34 @@
             <!-- A mesma versão do exemplo da Aula 09. -->
             <version>2.9.1</version>
         </dependency>
+
+        <!-- Aula 13, carta C2 (Caixa de Vidro): expõe /actuator/health, /actuator/metrics...
+             É a base da observabilidade no Spring Boot: a API diz se está de pé e o que está fazendo. -->
+        <dependency>
+            <!-- Grupo que publica os starters oficiais do Spring Boot. -->
+            <groupId>org.springframework.boot</groupId>
+            <!-- Health check, métricas e informações da aplicação. -->
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Aula 13: publica as métricas (as da JVM, as das rotas HTTP e as nossas) em texto,
+             em /actuator/prometheus, no formato que o Prometheus/Grafana coleta. -->
+        <dependency>
+            <!-- Grupo do Micrometer, a "fachada" de métricas usada pelo Spring Boot. -->
+            <groupId>io.micrometer</groupId>
+            <!-- Formato Prometheus para as métricas. -->
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!-- Aula 13, carta C2: JUnit 5, Mockito, AssertJ e o suporte a @WebMvcTest/MockMvc.
+             Só existe na hora dos testes (scope test): não vai para o jar da aplicação. -->
+        <dependency>
+            <!-- Grupo que publica os starters oficiais do Spring Boot. -->
+            <groupId>org.springframework.boot</groupId>
+            <!-- Tudo o que a suíte de testes usa. -->
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -107,6 +135,22 @@
                 <groupId>org.springframework.boot</groupId>
                 <!-- Plugin que executa e empacota a aplicação Spring Boot. -->
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!-- Aula 13: é quem roda os testes no "./mvnw test". A versão precisa ser 3.x:
+                 as antigas não enxergam o JUnit 5. -->
+            <plugin>
+                <!-- Grupo dos plugins oficiais do Maven. -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <!-- Plugin que executa os testes JUnit. -->
+                <artifactId>maven-surefire-plugin</artifactId>
+                <!-- A mesma versão do exemplo da Aula 13. -->
+                <version>3.5.4</version>
+                <configuration>
+                    <!-- O Mockito se instala na JVM durante o teste; a partir do Java 21 isso
+                         precisa ser permitido, senão cada execução imprime um aviso. -->
+                    <argLine>-XX:+EnableDynamicAgentLoading</argLine>
+                </configuration>
             </plugin>
         </plugins>
     </build>

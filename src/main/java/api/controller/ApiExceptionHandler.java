@@ -10,10 +10,15 @@ import java.util.Comparator;
 // Importa a lista de erros por campo.
 import java.util.List;
 
+// Importa a API de log (SLF4J): carta C2.
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 // Importa o enum com os status HTTP conhecidos pelo Spring.
 import org.springframework.http.HttpStatus;
 // Importa o tipo usado para montar uma resposta HTTP completa.
 import org.springframework.http.ResponseEntity;
+// Importa a interface das exceções que o próprio Spring já sabe responder (404 de rota, 405...).
+import org.springframework.web.ErrorResponse;
 // Importa a exceção lançada quando o corpo não é um JSON legível.
 import org.springframework.http.converter.HttpMessageNotReadableException;
 // Importa a exceção lançada quando o @Valid reprova o DTO.
@@ -50,17 +55,28 @@ import api.service.RegraDeNegocioException;
 // domínio? Crie a exceção no pacote service e acrescente aqui um método
 // @ExceptionHandler para ela.
 //
-// Cuidado para não criar um @ExceptionHandler(Exception.class) "pega-tudo":
-// ele também capturaria os 404 e 405 que o próprio Spring gera para rotas que
-// não existem, e tudo viraria 500.
+// Cuidado com um @ExceptionHandler(Exception.class) "pega-tudo": ele também
+// capturaria os 404 e 405 que o próprio Spring gera para rotas que não existem,
+// e tudo viraria 500. O tratarErroInesperado, no fim desta classe, evita isso:
+// exceção do Spring (ErrorResponse) mantém o status que o Spring daria.
+//
+// LOGS (carta C2): erro do cliente (4xx) sai em WARN; erro da API (5xx) sai em
+// ERROR, com a stack trace -- mas o cliente recebe só uma mensagem genérica.
+// A regra de negócio violada já foi registrada em WARN pelo Service (com o
+// código da regra), por isso não é registrada de novo aqui.
 // Registra esta classe para tratar exceções lançadas pelos controllers.
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    // Logger desta classe.
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     // 404: trata a classe-mãe, então vale para toda exceção que herda dela --
     // a resposta é a mesma, só a mensagem muda (e já vem pronta de cada exceção).
     @ExceptionHandler(RecursoNaoEncontradoException.class)
     public ResponseEntity<ErroDTO> tratarNaoEncontrado(RecursoNaoEncontradoException e, HttpServletRequest request) {
+        // WARN: o cliente pediu algo que não existe (id errado, registro excluído).
+        log.warn("Recurso não encontrado em {} {}: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
         // Sem erros de campo: a lista vai vazia, mas vai (o campo sempre existe).
         return responder(HttpStatus.NOT_FOUND, e.getMessage(), request, List.of());
     }
@@ -82,6 +98,8 @@ public class ApiExceptionHandler {
                 // Ordem fixa (por campo): o Bean Validation não garante ordem nenhuma.
                 .sorted(Comparator.comparing(CampoErroDTO::campo).thenComparing(CampoErroDTO::mensagem))
                 .toList();
+        // WARN com os campos reprovados: mostra o que o cliente está mandando errado.
+        log.warn("Validação reprovou {} {}: {}", request.getMethod(), request.getRequestURI(), campos);
         // A mensagem geral é fixa; o detalhe de cada campo está na lista.
         return responder(HttpStatus.BAD_REQUEST, "Dados inválidos: confira a lista de campos", request, campos);
     }
@@ -91,6 +109,9 @@ public class ApiExceptionHandler {
     // conseguiu montar o DTO.
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErroDTO> tratarCorpoIlegivel(HttpMessageNotReadableException e, HttpServletRequest request) {
+        // No log, sim, vai o detalhe do Jackson: ajuda a achar o campo quebrado.
+        log.warn("Corpo ilegível em {} {}: {}", request.getMethod(), request.getRequestURI(),
+                e.getMostSpecificCause().getMessage());
         // e.getMessage() traria detalhes internos do Jackson -- não vai para o cliente.
         return responder(HttpStatus.BAD_REQUEST,
                 "Corpo da requisição inválido: confira o JSON e o formato das datas (yyyy-MM-ddTHH:mm:ss)", request, List.of());
@@ -99,6 +120,7 @@ public class ApiExceptionHandler {
     // 400 de ordenação: ?sort=campoQueNaoExiste. Sem este tratador, viraria 500.
     @ExceptionHandler(PropertyReferenceException.class)
     public ResponseEntity<ErroDTO> tratarOrdenacaoInvalida(PropertyReferenceException e, HttpServletRequest request) {
+        log.warn("Ordenação por campo inexistente em {}: {}", request.getRequestURI(), e.getPropertyName());
         // getPropertyName(): o nome que veio no sort e não existe.
         return responder(HttpStatus.BAD_REQUEST, "Campo de ordenação inválido: " + e.getPropertyName(),
                 request, List.of());
@@ -108,6 +130,7 @@ public class ApiExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErroDTO> tratarParametroInvalido(MethodArgumentTypeMismatchException e,
                                                            HttpServletRequest request) {
+        log.warn("Parâmetro {} inválido em {}: {}", e.getName(), request.getRequestURI(), e.getValue());
         // Diz qual parâmetro está errado, sem detalhe interno do Java.
         return responder(HttpStatus.BAD_REQUEST, "Parâmetro inválido: " + e.getName()
                 + " (datas no formato yyyy-MM-dd, ids numéricos)", request, List.of());
@@ -117,9 +140,28 @@ public class ApiExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErroDTO> tratarParametroAusente(MissingServletRequestParameterException e,
                                                           HttpServletRequest request) {
+        log.warn("Parâmetro {} ausente em {}", e.getParameterName(), request.getRequestURI());
         // getParameterName(): o parâmetro que faltou.
         return responder(HttpStatus.BAD_REQUEST, "Parâmetro obrigatório ausente: " + e.getParameterName(),
                 request, List.of());
+    }
+
+    // Todo o resto. Duas situações bem diferentes:
+    //  - exceção do próprio Spring (rota inexistente, verbo não suportado...): ela
+    //    já sabe o status certo (404, 405...); só devolvemos no formato ErroDTO, em WARN;
+    //  - qualquer outra (banco fora do ar, bug): ERROR com a stack trace no log, e
+    //    500 com mensagem genérica para o cliente -- detalhe interno não sai da API.
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErroDTO> tratarErroInesperado(Exception e, HttpServletRequest request) {
+        if (e instanceof ErrorResponse erroDoSpring) {
+            HttpStatus status = HttpStatus.valueOf(erroDoSpring.getStatusCode().value());
+            log.warn("{} {} -> {}: {}", request.getMethod(), request.getRequestURI(), status.value(), e.getMessage());
+            return responder(status, erroDoSpring.getBody().getDetail(), request, List.of());
+        }
+        // O último parâmetro "e" faz o SLF4J imprimir a stack trace inteira.
+        log.error("Erro inesperado em {} {}", request.getMethod(), request.getRequestURI(), e);
+        return responder(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Erro interno: a falha foi registrada no log da API com o id desta requisição", request, List.of());
     }
 
     // Monta o ErroDTO e a resposta HTTP -- um lugar só, igual a um mapper.

@@ -1,6 +1,9 @@
 // Define o pacote da camada de regras de negócio.
 package api.service;
 
+// Importa a API de log (SLF4J): carta C2.
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 // Importa os tipos de paginação do Spring Data.
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,15 +26,21 @@ import api.repository.AgendamentoRepository;
 import api.repository.FornecedorRepository;
 // Importa os filtros opcionais da listagem.
 import api.repository.Filtros;
+// Importa o registro das operações e das regras violadas (métricas).
+import api.observability.Operacoes;
 
 // CAMADA: Service
 // RESPONSABILIDADE: CRUD dos fornecedores.
 // REGRAS: R4 (fornecedor com agendamentos não pode ser excluído). As regras do
 //         agendamento (R1, R2 e R3) moram no AgendamentoService.
 // ROTAS ATENDIDAS: POST, GET (paginado, com filtros), GET /{id}, PUT /{id} e DELETE /{id} de /fornecedores.
+// LOGS (carta C2): INFO ao criar, alterar e excluir; WARN quando a R4 barra a exclusão.
 // SITUAÇÃO: implementada.
 @Service
 public class FornecedorService {
+
+    // Logger desta classe.
+    private static final Logger log = LoggerFactory.getLogger(FornecedorService.class);
 
     // Acesso à tabela fornecedores.
     private final FornecedorRepository repository;
@@ -42,19 +51,27 @@ public class FornecedorService {
     // Converte DTO <-> entidade.
     private final FornecedorMapper mapper;
 
+    // Conta as operações e as regras violadas nas métricas.
+    private final Operacoes operacoes;
+
     // Recebe as dependências que o Spring injeta automaticamente.
     public FornecedorService(FornecedorRepository repository, AgendamentoRepository agendamentoRepository,
-                             FornecedorMapper mapper) {
+                             FornecedorMapper mapper, Operacoes operacoes) {
         // Guarda as dependências recebidas nos atributos da classe.
         this.repository = repository;
         this.agendamentoRepository = agendamentoRepository;
         this.mapper = mapper;
+        this.operacoes = operacoes;
     }
 
     // POST /fornecedores: monta a entidade, grava e devolve o fornecedor com o id gerado.
     public FornecedorResponseDTO criar(FornecedorRequestDTO dto) {
         // Grava o fornecedor novo; o banco gera o id.
         Fornecedor salvo = repository.save(mapper.toEntity(dto));
+        // Log estruturado: a mensagem para gente ler, os campos para o log JSON.
+        log.atInfo().addKeyValue("operacao", "criar").addKeyValue("fornecedorId", salvo.getId())
+                .log("Fornecedor {} criado: {} ({})", salvo.getId(), salvo.getNome(), salvo.getCnpj());
+        operacoes.contar("fornecedor", "criar");
         // Converte o resultado, já com o id.
         return mapper.toResponse(salvo);
     }
@@ -80,10 +97,16 @@ public class FornecedorService {
     public FornecedorResponseDTO atualizar(Long id, FornecedorRequestDTO dto) {
         // 404 se o fornecedor não existir.
         Fornecedor fornecedor = buscarEntidade(id);
+        // Guarda o nome antigo, para o log mostrar o antes e o depois.
+        String antes = fornecedor.getNome();
         // Copia os dados novos para a entidade.
         mapper.updateEntity(fornecedor, dto);
-        // Grava e devolve o fornecedor atualizado.
-        return mapper.toResponse(repository.save(fornecedor));
+        Fornecedor salvo = repository.save(fornecedor);
+        log.atInfo().addKeyValue("operacao", "atualizar").addKeyValue("fornecedorId", id)
+                .log("Fornecedor {} alterado: {} -> {} ({})", id, antes, salvo.getNome(), salvo.getCnpj());
+        operacoes.contar("fornecedor", "atualizar");
+        // Devolve o fornecedor atualizado.
+        return mapper.toResponse(salvo);
     }
 
     // DELETE /fornecedores/{id}: exclui o fornecedor, se ele não tiver agendamentos.
@@ -93,11 +116,14 @@ public class FornecedorService {
         Fornecedor fornecedor = buscarEntidade(id);
         // R4: apagar o fornecedor deixaria agendamentos sem dono.
         if (agendamentoRepository.existsByFornecedorId(id)) {
-            throw new RegraDeNegocioException("R4: o fornecedor " + fornecedor.getNome()
-                    + " tem agendamentos e não pode ser excluído");
+            throw new RegraDeNegocioException(operacoes.regraViolada("R4", "fornecedor", "R4: o fornecedor "
+                    + fornecedor.getNome() + " tem agendamentos e não pode ser excluído"));
         }
         // Sem agendamentos: pode apagar.
         repository.delete(fornecedor);
+        log.atInfo().addKeyValue("operacao", "excluir").addKeyValue("fornecedorId", id)
+                .log("Fornecedor {} excluído: {}", id, fornecedor.getNome());
+        operacoes.contar("fornecedor", "excluir");
     }
 
     // Busca a entidade ou lança a exceção que vira 404 -- usado por várias rotas.
